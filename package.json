@@ -1,0 +1,27 @@
+{
+  "name": "healthbot-gemini",
+  "version": "1.0.0",
+  "description": "AI-powered health chatbot using Google Gemini API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "chatbot",
+    "health",
+    "gemini",
+    "ai",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.1"
+  }
+}

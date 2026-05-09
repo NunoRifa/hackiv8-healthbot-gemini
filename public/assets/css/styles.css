@@ -1,0 +1,262 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "DM Sans", sans-serif;
+  background: #0b1120;
+  color: #e2e8f0;
+  margin: 0;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+.bg-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 10% 0%,
+      rgba(14, 184, 120, 0.12) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 90% 100%,
+      rgba(14, 184, 120, 0.08) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 50% 50%,
+      rgba(11, 17, 32, 0) 0%,
+      #0b1120 100%
+    );
+  pointer-events: none;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(14, 184, 120, 0.3);
+  border-radius: 99px;
+}
+
+.bubble-user {
+  background: linear-gradient(135deg, #059660 0%, #0eb878 100%);
+  border-radius: 18px 18px 4px 18px;
+}
+
+.bubble-bot {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border-radius: 18px 18px 18px 4px;
+}
+
+.prose-health h1,
+.prose-health h2,
+.prose-health h3 {
+  font-family: "Bricolage Grotesque", sans-serif;
+  color: #6fe5b8;
+  margin: 0.8em 0 0.4em;
+  font-weight: 600;
+}
+
+.prose-health h1 {
+  font-size: 1.1em;
+}
+
+.prose-health h2 {
+  font-size: 1.05em;
+}
+
+.prose-health h3 {
+  font-size: 1em;
+}
+
+.prose-health p {
+  margin: 0.5em 0;
+  line-height: 1.65;
+}
+
+.prose-health ul,
+.prose-health ol {
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+
+.prose-health li {
+  margin: 0.25em 0;
+  line-height: 1.6;
+}
+
+.prose-health strong {
+  color: #a9f1d3;
+  font-weight: 600;
+}
+
+.prose-health em {
+  color: #94a3b8;
+}
+
+.prose-health code {
+  background: rgba(14, 184, 120, 0.15);
+  color: #6fe5b8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.prose-health blockquote {
+  border-left: 3px solid #0eb878;
+  padding-left: 1em;
+  margin: 0.6em 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.prose-health hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 0.8em 0;
+}
+
+.prose-health a {
+  color: #6fe5b8;
+  text-decoration: underline;
+}
+
+.input-area {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(14, 184, 120, 0.15);
+  backdrop-filter: blur(20px);
+}
+
+textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.tab-btn {
+  transition: all 0.2s ease;
+  position: relative;
+  white-space: nowrap;
+}
+
+.tab-btn.active {
+  color: #0eb878;
+}
+
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #0eb878;
+  border-radius: 2px 2px 0 0;
+}
+
+.drop-zone {
+  border: 2px dashed rgba(14, 184, 120, 0.3);
+  transition: all 0.2s ease;
+}
+
+.drop-zone.dragover {
+  border-color: #0eb878;
+  background: rgba(14, 184, 120, 0.05);
+}
+
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  background: #6fe5b8;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.send-btn {
+  background: linear-gradient(135deg, #059660 0%, #0eb878 100%);
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(14, 184, 120, 0.25);
+}
+
+.send-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 6px 28px rgba(14, 184, 120, 0.4);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.topic-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.topic-pill:hover {
+  background: rgba(14, 184, 120, 0.1);
+  border-color: rgba(14, 184, 120, 0.3);
+  color: #6fe5b8;
+}
+
+.media-preview {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.logo-ring {
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+@keyframes logoPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(14, 184, 120, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(14, 184, 120, 0);
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-scroll {
+    padding-bottom: 1rem;
+  }
+}
+
+.msg-enter {
+  animation: slideUp 0.35s ease-out forwards;
+}
+
+#toast {
+  transition: all 0.3s ease;
+}
+
+.truncate-name {
+  max-width: 180px;
+}
