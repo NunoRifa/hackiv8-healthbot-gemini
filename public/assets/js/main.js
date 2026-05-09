@@ -3,6 +3,16 @@ let isSending = false;
 let currentTab = "text";
 let selectedFiles = { image: null, document: null, audio: null };
 
+function haptic(pattern = 15) {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate(pattern);
+    } catch (_) {
+      /* noop */
+    }
+  }
+}
+
 function showToast(msg, type = "error") {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -47,6 +57,7 @@ function setBusy(busy) {
 }
 
 function switchTab(tab) {
+  haptic(8);
   currentTab = tab;
   document.querySelectorAll(".tab-btn").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === tab);
@@ -101,14 +112,17 @@ function appendTypingIndicator() {
   div.id = "typingIndicator";
   div.className = "msg-enter flex justify-start";
   div.innerHTML = `
-        <div class="flex items-start gap-3">
+        <div class="flex items-start gap-3 max-w-[85%] w-full">
           <div class="w-8 h-8 rounded-lg bg-jade-700 flex items-center justify-center text-base flex-shrink-0 mt-0.5">🩺</div>
-          <div class="bubble-bot px-4 py-3">
-            <div class="flex gap-1.5 items-center h-4">
+          <div class="bubble-bot px-4 py-3 flex-1">
+            <div class="flex gap-1.5 items-center h-4 mb-2">
               <span class="typing-dot"></span>
               <span class="typing-dot"></span>
               <span class="typing-dot"></span>
             </div>
+            <div class="skeleton skeleton-line" style="width:92%"></div>
+            <div class="skeleton skeleton-line" style="width:76%"></div>
+            <div class="skeleton skeleton-line" style="width:60%"></div>
           </div>
         </div>`;
   container.appendChild(div);
@@ -122,6 +136,7 @@ function removeTypingIndicator() {
 
 function appendBotMessage(text) {
   removeTypingIndicator();
+  haptic(12);
   const container = document.getElementById("messagesContainer");
   const div = document.createElement("div");
   div.className = "msg-enter flex justify-start";
@@ -150,6 +165,7 @@ function appendBotMessage(text) {
 
 function appendErrorMessage(text) {
   removeTypingIndicator();
+  haptic([30, 60, 30]);
   const container = document.getElementById("messagesContainer");
   const div = document.createElement("div");
   div.className = "msg-enter flex justify-start";
@@ -206,6 +222,7 @@ async function sendText() {
   const message = input.value.trim();
   if (!message || isSending) return;
 
+  haptic(15);
   input.value = "";
   autoResize(input);
   setBusy(true);
@@ -343,6 +360,7 @@ async function sendImage() {
   const prompt = document.getElementById("imagePrompt").value.trim();
   const file = selectedFiles.image;
 
+  haptic(15);
   setBusy(true);
   appendMediaMessage("🖼️", "Gambar", file.name);
   if (prompt) appendUserMessage(prompt);
@@ -391,6 +409,7 @@ async function sendDocument() {
   const prompt = document.getElementById("docPrompt").value.trim();
   const file = selectedFiles.document;
 
+  haptic(15);
   setBusy(true);
   appendMediaMessage("📄", "Dokumen", file.name);
   if (prompt) appendUserMessage(prompt);
@@ -439,6 +458,7 @@ async function sendAudio() {
   const prompt = document.getElementById("audioPrompt").value.trim();
   const file = selectedFiles.audio;
 
+  haptic(15);
   setBusy(true);
   appendMediaMessage("🎵", "Audio", file.name);
   if (prompt) appendUserMessage(prompt);
@@ -478,4 +498,96 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("textInput").focus();
 
   document.querySelectorAll("textarea").forEach((ta) => autoResize(ta));
+});
+
+// ============= BMI Calculator =============
+
+function openBMI() {
+  haptic(12);
+  const modal = document.getElementById("bmiModal");
+  modal.classList.add("open");
+  setTimeout(() => document.getElementById("bmiHeight").focus(), 80);
+}
+
+function closeBMI() {
+  haptic(8);
+  document.getElementById("bmiModal").classList.remove("open");
+}
+
+function classifyBMI(bmi) {
+  if (bmi < 18.5)
+    return {
+      cls: "is-under",
+      label: "Berat badan kurang (underweight)",
+      emoji: "📉",
+    };
+  if (bmi < 25)
+    return { cls: "is-normal", label: "Berat badan normal", emoji: "✅" };
+  if (bmi < 30)
+    return {
+      cls: "is-over",
+      label: "Berat badan berlebih (overweight)",
+      emoji: "⚠️",
+    };
+  return { cls: "is-obese", label: "Obesitas", emoji: "🚨" };
+}
+
+function updateBMI() {
+  const heightCm = parseFloat(document.getElementById("bmiHeight").value);
+  const weightKg = parseFloat(document.getElementById("bmiWeight").value);
+  const resultEl = document.getElementById("bmiResult");
+  const valueEl = document.getElementById("bmiValue");
+  const catEl = document.getElementById("bmiCategory");
+  const askBtn = document.getElementById("bmiAskBtn");
+
+  resultEl.classList.remove("is-under", "is-normal", "is-over", "is-obese");
+
+  if (
+    !heightCm ||
+    !weightKg ||
+    heightCm < 50 ||
+    heightCm > 260 ||
+    weightKg < 20 ||
+    weightKg > 400
+  ) {
+    valueEl.textContent = "—";
+    valueEl.style.color = "";
+    catEl.textContent = "Masukkan tinggi & berat";
+    askBtn.disabled = true;
+    return;
+  }
+
+  const heightM = heightCm / 100;
+  const bmi = weightKg / (heightM * heightM);
+  const { cls, label, emoji } = classifyBMI(bmi);
+
+  valueEl.textContent = bmi.toFixed(1);
+  catEl.textContent = `${emoji} ${label}`;
+  resultEl.classList.add(cls);
+  askBtn.disabled = false;
+}
+
+function askBMIAdvice() {
+  const heightCm = parseFloat(document.getElementById("bmiHeight").value);
+  const weightKg = parseFloat(document.getElementById("bmiWeight").value);
+  if (!heightCm || !weightKg) return;
+
+  const bmi = weightKg / (heightCm / 100) ** 2;
+  const { label } = classifyBMI(bmi);
+
+  const message = `Saya sudah menghitung BMI saya: tinggi ${heightCm} cm, berat ${weightKg} kg, BMI = ${bmi.toFixed(1)} (${label}). Mohon berikan saran kesehatan, pola makan, dan olahraga yang sesuai untuk kondisi saya. 🩺`;
+
+  closeBMI();
+  switchTab("text");
+  const input = document.getElementById("textInput");
+  input.value = message;
+  autoResize(input);
+  sendText();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("bmiModal");
+    if (modal && modal.classList.contains("open")) closeBMI();
+  }
 });

@@ -95,6 +95,12 @@
                 Chat Baru
             </button>
 
+            <button onclick="openBMI()"
+                class="w-full py-2.5 px-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] text-slate-300 hover:text-jade-300 transition-all duration-200">
+                <span class="text-base leading-none">⚖️</span>
+                Kalkulator BMI
+            </button>
+
             <div>
                 <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3 px-1">Topik Populer</p>
                 <div class="flex flex-col gap-1.5">
@@ -153,6 +159,10 @@
                     <p class="font-display font-600 text-white text-sm leading-none">HealthBot</p>
                     <p class="text-xs text-jade-400">Asisten Kesehatan AI</p>
                 </div>
+                <button onclick="openBMI()" class="text-slate-400 hover:text-jade-400 transition-colors p-1 text-lg"
+                    title="Kalkulator BMI">
+                    ⚖️
+                </button>
                 <button onclick="clearChat()" class="text-slate-400 hover:text-jade-400 transition-colors p-1"
                     title="Chat Baru">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -375,6 +385,60 @@
 
     <div id="toast"
         class="fixed top-4 right-4 z-50 hidden px-4 py-3 rounded-xl text-sm font-medium shadow-2xl max-w-xs"></div>
+
+    <div id="bmiModal" class="fixed inset-0 z-40 hidden items-center justify-center px-4">
+        <div class="modal-backdrop absolute inset-0" onclick="closeBMI()"></div>
+        <div class="modal-card relative w-full max-w-sm rounded-2xl p-5 sm:p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-jade-600/20 border border-jade-600/30 flex items-center justify-center text-xl">
+                        ⚖️</div>
+                    <div>
+                        <p class="font-display font-700 text-white text-base leading-tight">Kalkulator BMI</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Body Mass Index</p>
+                    </div>
+                </div>
+                <button onclick="closeBMI()" aria-label="Tutup"
+                    class="text-slate-500 hover:text-slate-200 transition-colors -mt-1 -mr-1 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label for="bmiHeight" class="text-xs font-medium text-slate-400 mb-1.5 block">Tinggi badan
+                        (cm)</label>
+                    <input type="number" id="bmiHeight" inputmode="decimal" min="50" max="260" placeholder="170"
+                        oninput="updateBMI()"
+                        class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-jade-600/50 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 outline-none transition-colors" />
+                </div>
+                <div>
+                    <label for="bmiWeight" class="text-xs font-medium text-slate-400 mb-1.5 block">Berat badan
+                        (kg)</label>
+                    <input type="number" id="bmiWeight" inputmode="decimal" min="20" max="400" placeholder="65"
+                        oninput="updateBMI()"
+                        class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-jade-600/50 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 outline-none transition-colors" />
+                </div>
+
+                <div id="bmiResult" class="bmi-result rounded-xl border border-white/[0.06] p-4 text-center">
+                    <p class="text-xs text-slate-500 mb-1">BMI Anda</p>
+                    <p id="bmiValue" class="font-display font-700 text-3xl text-slate-600">—</p>
+                    <p id="bmiCategory" class="text-xs text-slate-500 mt-1">Masukkan tinggi & berat</p>
+                </div>
+
+                <button id="bmiAskBtn" onclick="askBMIAdvice()" disabled
+                    class="w-full py-2.5 px-4 rounded-xl text-sm font-medium send-btn text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                    Tanya HealthBot tentang hasil ini
+                </button>
+
+                <p class="text-[11px] text-slate-600 leading-relaxed text-center">
+                    BMI hanya indikator umum, bukan diagnosis. Untuk evaluasi menyeluruh konsultasikan dengan dokter.
+                </p>
+            </div>
+        </div>
+    </div>
 
     <script src="./assets/js/main.js"></script>
 </body>
