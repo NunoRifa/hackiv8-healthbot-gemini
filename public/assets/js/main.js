@@ -1,7 +1,93 @@
-let chatHistory = []; // [{role:'user'|'model', text:'...'}]
+let chatHistory = []; // [{role:'user'|'model', text:'...', ts:number, kind?:'media', mediaIcon?, mediaLabel?, mediaName?, prompt?}]
 let isSending = false;
-let currentTab = "text";
-let selectedFiles = { image: null, document: null, audio: null };
+let selectedAttachment = null; // { type: 'image'|'document'|'audio', file: File, previewUrl?: string }
+
+const STORAGE_KEY = "healthbot:chat:v1";
+const MAX_PERSISTED_MESSAGES = 100;
+
+const ATTACH_META = {
+  image: {
+    label: "Gambar",
+    icon: "🖼️",
+    inputId: "imageInput",
+    endpoint: "/api/chat/image",
+    field: "image",
+    errorMsg: "Gagal menganalisis gambar.",
+    placeholder: "Tambahkan keterangan untuk gambar (opsional)...",
+  },
+  document: {
+    label: "Dokumen",
+    icon: "📄",
+    inputId: "docInput",
+    endpoint: "/api/chat/document",
+    field: "document",
+    errorMsg: "Gagal membaca dokumen.",
+    placeholder: "Tambahkan pertanyaan tentang dokumen (opsional)...",
+  },
+  audio: {
+    label: "Audio",
+    icon: "🎵",
+    inputId: "audioInput",
+    endpoint: "/api/chat/audio",
+    field: "audio",
+    errorMsg: "Gagal menganalisis audio.",
+    placeholder: "Tambahkan pertanyaan tentang audio (opsional)...",
+  },
+};
+const DEFAULT_PLACEHOLDER = "Ketik pertanyaan kesehatan Anda...";
+
+function saveHistory() {
+  try {
+    const trimmed = chatHistory.slice(-MAX_PERSISTED_MESSAGES);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  } catch (_) {
+    /* localStorage unavailable or quota exceeded — silent fail */
+  }
+}
+
+function loadHistory() {
+  let parsed;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    return;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+  chatHistory = parsed.filter(
+    (e) =>
+      e &&
+      (e.role === "user" || e.role === "model") &&
+      typeof e.text === "string",
+  );
+  if (chatHistory.length === 0) return;
+
+  hideWelcome();
+  chatHistory.forEach(renderHistoryEntry);
+  showToast(
+    `${chatHistory.length} pesan dipulihkan dari sesi sebelumnya`,
+    "info",
+  );
+}
+
+function renderHistoryEntry(entry) {
+  if (entry.role === "user") {
+    if (entry.kind === "media") {
+      appendMediaMessage(
+        entry.mediaIcon || "📎",
+        entry.mediaLabel || "File",
+        entry.mediaName || "",
+      );
+      if (entry.prompt) appendUserMessage(entry.prompt);
+    } else {
+      appendUserMessage(entry.text);
+    }
+  } else if (entry.role === "model") {
+    appendBotMessage(entry.text, entry.ts, { silent: true });
+  }
+}
 
 function haptic(pattern = 15) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -48,29 +134,10 @@ function hideWelcome() {
 
 function setBusy(busy) {
   isSending = busy;
-  ["sendTextBtn", "sendImageBtn", "sendDocBtn", "sendAudioBtn"].forEach(
-    (id) => {
-      const btn = document.getElementById(id);
-      if (btn) btn.disabled = busy;
-    },
-  );
-}
-
-function switchTab(tab) {
-  haptic(8);
-  currentTab = tab;
-  document.querySelectorAll(".tab-btn").forEach((b) => {
-    b.classList.toggle("active", b.dataset.tab === tab);
-  });
-  document.querySelectorAll(".tab-panel").forEach((p) => {
-    p.classList.add("hidden");
-  });
-  document.getElementById(`panel-${tab}`).classList.remove("hidden");
-
-  // Focus text input when switching to text
-  if (tab === "text") {
-    setTimeout(() => document.getElementById("textInput").focus(), 100);
-  }
+  const sendBtn = document.getElementById("sendBtn");
+  const attachBtn = document.getElementById("attachToggle");
+  if (sendBtn) sendBtn.disabled = busy;
+  if (attachBtn) attachBtn.disabled = busy;
 }
 
 function appendUserMessage(content) {
@@ -134,14 +201,20 @@ function removeTypingIndicator() {
   if (el) el.remove();
 }
 
-function appendBotMessage(text) {
-  removeTypingIndicator();
-  haptic(12);
+function appendBotMessage(text, ts, opts = {}) {
+  if (!opts.silent) {
+    removeTypingIndicator();
+    haptic(12);
+  }
   const container = document.getElementById("messagesContainer");
   const div = document.createElement("div");
   div.className = "msg-enter flex justify-start";
 
   const parsed = marked.parse(text || "");
+  const timeText = new Date(ts || Date.now()).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   div.innerHTML = `
         <div class="flex items-start gap-3 max-w-[85%]">
@@ -155,7 +228,7 @@ function appendBotMessage(text) {
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2"/></svg>
                 Salin
               </button>
-              <span class="text-slate-700 text-xs">${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
+              <span class="text-slate-700 text-xs">${timeText}</span>
             </div>
           </div>
         </div>`;
@@ -204,21 +277,162 @@ function copyText(btn, text) {
 
 function clearChat() {
   chatHistory = [];
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (_) {
+    /* noop */
+  }
   document.getElementById("messagesContainer").innerHTML = "";
   document.getElementById("welcomeScreen").style.display = "";
-  document.getElementById("textInput").value = "";
+  const composer = document.getElementById("composerInput");
+  composer.value = "";
+  autoResize(composer);
+  clearAttachment();
+  closeAttachMenu();
 }
 
 function askTopic(msg) {
-  switchTab("text");
-  const input = document.getElementById("textInput");
+  closeAttachMenu();
+  clearAttachment();
+  const input = document.getElementById("composerInput");
   input.value = msg;
   autoResize(input);
   sendText();
 }
 
+// ============= Composer / Attachments =============
+
+function toggleAttachMenu(e) {
+  if (e) e.stopPropagation();
+  if (isSending) return;
+  haptic(8);
+  const menu = document.getElementById("attachMenu");
+  const btn = document.getElementById("attachToggle");
+  const isOpen = !menu.classList.contains("hidden");
+  if (isOpen) {
+    closeAttachMenu();
+  } else {
+    menu.classList.remove("hidden");
+    menu.setAttribute("aria-hidden", "false");
+    btn.classList.add("open");
+  }
+}
+
+function closeAttachMenu() {
+  const menu = document.getElementById("attachMenu");
+  const btn = document.getElementById("attachToggle");
+  if (!menu) return;
+  menu.classList.add("hidden");
+  menu.setAttribute("aria-hidden", "true");
+  if (btn) btn.classList.remove("open");
+}
+
+function pickAttachment(type) {
+  closeAttachMenu();
+  const meta = ATTACH_META[type];
+  if (!meta) return;
+  document.getElementById(meta.inputId).click();
+}
+
+function handleFileSelect(event, type) {
+  const file = event.target.files[0];
+  if (file) setAttachment(type, file);
+  // Reset so picking the same file again still triggers onchange
+  event.target.value = "";
+}
+
+function setAttachment(type, file) {
+  const meta = ATTACH_META[type];
+  if (!meta) return;
+
+  if (file.size > 20 * 1024 * 1024) {
+    showToast("Ukuran file maksimal 20MB.");
+    return;
+  }
+
+  if (selectedAttachment?.previewUrl) {
+    URL.revokeObjectURL(selectedAttachment.previewUrl);
+  }
+
+  let previewUrl = null;
+  if (type === "image" || type === "audio") {
+    previewUrl = URL.createObjectURL(file);
+  }
+  selectedAttachment = { type, file, previewUrl };
+
+  renderAttachmentPreview();
+
+  const composer = document.getElementById("composerInput");
+  composer.placeholder = meta.placeholder;
+  composer.focus();
+  haptic(10);
+}
+
+function clearAttachment() {
+  if (!selectedAttachment) return;
+  if (selectedAttachment.previewUrl) {
+    URL.revokeObjectURL(selectedAttachment.previewUrl);
+  }
+  selectedAttachment = null;
+  ["imageInput", "docInput", "audioInput"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  renderAttachmentPreview();
+  document.getElementById("composerInput").placeholder = DEFAULT_PLACEHOLDER;
+}
+
+function renderAttachmentPreview() {
+  const el = document.getElementById("attachmentPreview");
+  if (!el) return;
+  if (!selectedAttachment) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  const { type, file, previewUrl } = selectedAttachment;
+  const meta = ATTACH_META[type];
+
+  let thumb;
+  if (type === "image" && previewUrl) {
+    thumb = `<img src="${previewUrl}" class="attach-chip-thumb" alt=""/>`;
+  } else {
+    thumb = `<div class="attach-chip-thumb">${meta.icon}</div>`;
+  }
+
+  const sizeMb = (file.size / 1024 / 1024).toFixed(2);
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <div class="attach-chip">
+      ${thumb}
+      <div class="attach-chip-meta">
+        <p class="attach-chip-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+        <p class="attach-chip-size">${meta.label} • ${sizeMb} MB</p>
+      </div>
+      <button type="button" class="attach-chip-remove" onclick="clearAttachment()" aria-label="Hapus lampiran" title="Hapus">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>`;
+}
+
+function handleComposerKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+async function sendMessage() {
+  if (isSending) return;
+  if (selectedAttachment) {
+    await sendWithAttachment();
+  } else {
+    await sendText();
+  }
+}
+
 async function sendText() {
-  const input = document.getElementById("textInput");
+  const input = document.getElementById("composerInput");
   const message = input.value.trim();
   if (!message || isSending) return;
 
@@ -229,7 +443,8 @@ async function sendText() {
   appendUserMessage(message);
   appendTypingIndicator();
 
-  chatHistory.push({ role: "user", text: message });
+  chatHistory.push({ role: "user", text: message, ts: Date.now() });
+  saveHistory();
 
   try {
     const res = await fetch("/api/chat/text", {
@@ -241,263 +456,170 @@ async function sendText() {
 
     if (!res.ok) throw new Error(data.error || "Server error");
 
-    chatHistory.push({ role: "model", text: data.result });
+    chatHistory.push({ role: "model", text: data.result, ts: Date.now() });
+    saveHistory();
     appendBotMessage(data.result);
   } catch (err) {
-    chatHistory.pop(); // remove optimistic entry
+    chatHistory.pop();
+    saveHistory();
     appendErrorMessage(err.message || "Terjadi kesalahan. Coba lagi.");
   } finally {
     setBusy(false);
   }
 }
 
-function handleTextKey(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendText();
-  }
-}
+async function sendWithAttachment() {
+  if (!selectedAttachment || isSending) return;
+  const { type, file } = selectedAttachment;
+  const meta = ATTACH_META[type];
 
-function handleFileSelect(event, type) {
-  const file = event.target.files[0];
-  if (file) setSelectedFile(type, file);
-}
-
-function setSelectedFile(type, file) {
-  selectedFiles[type] = file;
-
-  const previewMap = {
-    image: { area: "imagePreviewArea", icon: "🖼️", label: "Gambar dipilih" },
-    document: { area: "docPreviewArea", icon: "📄", label: "Dokumen dipilih" },
-    audio: { area: "audioPreviewArea", icon: "🎵", label: "Audio dipilih" },
-  };
-
-  const { area, icon, label } = previewMap[type];
-  const previewEl = document.getElementById(area);
-
-  let extra = "";
-  if (type === "image" && file.type.startsWith("image/")) {
-    const url = URL.createObjectURL(file);
-    extra = `<img src="${url}" class="mt-2 max-h-24 rounded-lg object-contain" onload="URL.revokeObjectURL(this.src)"/>`;
-  } else if (type === "audio") {
-    const url = URL.createObjectURL(file);
-    extra = `<audio controls class="mt-2 w-full max-w-xs" style="height:32px"><source src="${url}" type="${file.type}"></audio>`;
-  }
-
-  previewEl.innerHTML = `
-        <div class="flex flex-col items-center gap-1">
-          <span class="text-xl">${icon}</span>
-          <p class="text-xs font-medium text-jade-400">${label}</p>
-          <p class="text-xs text-slate-400 truncate-name truncate max-w-full px-2">${escapeHtml(file.name)}</p>
-          <p class="text-xs text-slate-600">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
-          ${extra}
-          <button onclick="clearFile('${type}')" class="mt-1 text-xs text-red-400 hover:text-red-300">✕ Hapus</button>
-        </div>`;
-}
-
-function clearFile(type) {
-  selectedFiles[type] = null;
-  const inputMap = {
-    image: "imageInput",
-    document: "docInput",
-    audio: "audioInput",
-  };
-  document.getElementById(inputMap[type]).value = "";
-
-  const defaultsMap = {
-    image: {
-      area: "imagePreviewArea",
-      icon: "🖼️",
-      label: "Klik atau drag gambar ke sini",
-      hint: "JPG, PNG, WEBP, GIF — maks 20MB",
-    },
-    document: {
-      area: "docPreviewArea",
-      icon: "📄",
-      label: "Klik atau drag dokumen ke sini",
-      hint: "PDF, TXT — maks 20MB",
-    },
-    audio: {
-      area: "audioPreviewArea",
-      icon: "🎵",
-      label: "Klik atau drag file audio ke sini",
-      hint: "MP3, WAV, OGG, M4A — maks 20MB",
-    },
-  };
-  const { area, icon, label, hint } = defaultsMap[type];
-  document.getElementById(area).innerHTML = `
-        <span class="text-2xl">${icon}</span>
-        <p class="text-sm text-slate-400">${label}</p>
-        <p class="text-xs text-slate-600">${hint}</p>`;
-}
-
-function handleDragOver(e, zoneId) {
-  e.preventDefault();
-  document.getElementById(zoneId).classList.add("dragover");
-}
-function handleDragLeave(zoneId) {
-  document.getElementById(zoneId).classList.remove("dragover");
-}
-function handleDrop(e, type) {
-  e.preventDefault();
-  const zoneMap = {
-    image: "imageDropZone",
-    document: "docDropZone",
-    audio: "audioDropZone",
-  };
-  document.getElementById(zoneMap[type]).classList.remove("dragover");
-  const file = e.dataTransfer.files[0];
-  if (file) setSelectedFile(type, file);
-}
-
-async function sendImage() {
-  if (!selectedFiles.image) {
-    showToast("Pilih gambar terlebih dahulu.");
-    return;
-  }
-  if (isSending) return;
-
-  const prompt = document.getElementById("imagePrompt").value.trim();
-  const file = selectedFiles.image;
+  const input = document.getElementById("composerInput");
+  const prompt = input.value.trim();
+  const fileName = file.name;
 
   haptic(15);
   setBusy(true);
-  appendMediaMessage("🖼️", "Gambar", file.name);
+  appendMediaMessage(meta.icon, meta.label, fileName);
   if (prompt) appendUserMessage(prompt);
   appendTypingIndicator();
 
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append(meta.field, file);
   if (prompt) formData.append("message", prompt);
 
+  // Snapshot to allow restore on error
+  const restore = selectedAttachment;
+  input.value = "";
+  autoResize(input);
+  selectedAttachment = null;
+  renderAttachmentPreview();
+  input.placeholder = DEFAULT_PLACEHOLDER;
+
   try {
-    const res = await fetch("/api/chat/image", {
-      method: "POST",
-      body: formData,
-    });
+    const res = await fetch(meta.endpoint, { method: "POST", body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Server error");
+
     chatHistory.push({
       role: "user",
-      text: `[Gambar: ${file.name}] ${prompt}`,
+      text: `[${meta.label}: ${fileName}] ${prompt}`,
+      kind: "media",
+      mediaIcon: meta.icon,
+      mediaLabel: meta.label,
+      mediaName: fileName,
+      prompt,
+      ts: Date.now(),
     });
-    chatHistory.push({ role: "model", text: data.result });
+    chatHistory.push({ role: "model", text: data.result, ts: Date.now() });
+    saveHistory();
     appendBotMessage(data.result);
-    clearFile("image");
-    document.getElementById("imagePrompt").value = "";
+
+    // success — release any preview URL we held
+    if (restore.previewUrl) URL.revokeObjectURL(restore.previewUrl);
+    ["imageInput", "docInput", "audioInput"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
   } catch (err) {
-    appendErrorMessage(err.message || "Gagal menganalisis gambar.");
+    appendErrorMessage(err.message || meta.errorMsg);
+    // Restore attachment so user can retry without re-picking
+    selectedAttachment = restore;
+    renderAttachmentPreview();
+    input.placeholder = meta.placeholder;
   } finally {
     setBusy(false);
   }
 }
 
-function handleImageKey(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
+// ============= Drag & Drop on chat area =============
+
+function detectAttachmentType(file) {
+  if (!file) return null;
+  const t = file.type || "";
+  if (t.startsWith("image/")) return "image";
+  if (t.startsWith("audio/")) return "audio";
+  if (
+    t === "application/pdf" ||
+    t === "text/plain" ||
+    /\.(pdf|txt|doc|docx)$/i.test(file.name)
+  ) {
+    return "document";
+  }
+  // Fallback on extension
+  if (/\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(file.name)) return "image";
+  if (/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) return "audio";
+  return null;
+}
+
+function setupDragAndDrop() {
+  const main = document.querySelector("main");
+  if (!main) return;
+
+  // Position-relative wrapper for overlay
+  main.style.position = main.style.position || "relative";
+
+  const overlay = document.createElement("div");
+  overlay.className = "drop-overlay";
+  overlay.innerHTML = `
+    <div class="text-center">
+      <div class="text-4xl mb-2">📎</div>
+      <p class="text-sm font-medium text-jade-300">Lepaskan file di sini untuk dilampirkan</p>
+      <p class="text-xs text-slate-500 mt-1">Gambar, dokumen, atau audio (maks 20MB)</p>
+    </div>`;
+  main.appendChild(overlay);
+
+  let dragDepth = 0;
+  const isFileDrag = (e) =>
+    Array.from(e.dataTransfer?.types || []).includes("Files");
+
+  main.addEventListener("dragenter", (e) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
-    sendImage();
-  }
-}
-
-async function sendDocument() {
-  if (!selectedFiles.document) {
-    showToast("Pilih dokumen terlebih dahulu.");
-    return;
-  }
-  if (isSending) return;
-
-  const prompt = document.getElementById("docPrompt").value.trim();
-  const file = selectedFiles.document;
-
-  haptic(15);
-  setBusy(true);
-  appendMediaMessage("📄", "Dokumen", file.name);
-  if (prompt) appendUserMessage(prompt);
-  appendTypingIndicator();
-
-  const formData = new FormData();
-  formData.append("document", file);
-  if (prompt) formData.append("message", prompt);
-
-  try {
-    const res = await fetch("/api/chat/document", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Server error");
-    chatHistory.push({
-      role: "user",
-      text: `[Dokumen: ${file.name}] ${prompt}`,
-    });
-    chatHistory.push({ role: "model", text: data.result });
-    appendBotMessage(data.result);
-    clearFile("document");
-    document.getElementById("docPrompt").value = "";
-  } catch (err) {
-    appendErrorMessage(err.message || "Gagal membaca dokumen.");
-  } finally {
-    setBusy(false);
-  }
-}
-
-function handleDocKey(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
+    dragDepth++;
+    overlay.classList.add("show");
+  });
+  main.addEventListener("dragover", (e) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
-    sendDocument();
-  }
-}
-
-async function sendAudio() {
-  if (!selectedFiles.audio) {
-    showToast("Pilih file audio terlebih dahulu.");
-    return;
-  }
-  if (isSending) return;
-
-  const prompt = document.getElementById("audioPrompt").value.trim();
-  const file = selectedFiles.audio;
-
-  haptic(15);
-  setBusy(true);
-  appendMediaMessage("🎵", "Audio", file.name);
-  if (prompt) appendUserMessage(prompt);
-  appendTypingIndicator();
-
-  const formData = new FormData();
-  formData.append("audio", file);
-  if (prompt) formData.append("message", prompt);
-
-  try {
-    const res = await fetch("/api/chat/audio", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Server error");
-    chatHistory.push({ role: "user", text: `[Audio: ${file.name}] ${prompt}` });
-    chatHistory.push({ role: "model", text: data.result });
-    appendBotMessage(data.result);
-    clearFile("audio");
-    document.getElementById("audioPrompt").value = "";
-  } catch (err) {
-    appendErrorMessage(err.message || "Gagal menganalisis audio.");
-  } finally {
-    setBusy(false);
-  }
-}
-
-function handleAudioKey(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
+    e.dataTransfer.dropEffect = "copy";
+  });
+  main.addEventListener("dragleave", (e) => {
+    if (!isFileDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) overlay.classList.remove("show");
+  });
+  main.addEventListener("drop", (e) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
-    sendAudio();
-  }
+    dragDepth = 0;
+    overlay.classList.remove("show");
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const type = detectAttachmentType(file);
+    if (!type) {
+      showToast("Tipe file tidak didukung.");
+      return;
+    }
+    setAttachment(type, file);
+  });
 }
+
+// ============= Init =============
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("textInput").focus();
-
+  loadHistory();
+  document.getElementById("composerInput").focus();
   document.querySelectorAll("textarea").forEach((ta) => autoResize(ta));
+  setupDragAndDrop();
+});
+
+// Close attach menu on outside click
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("attachMenu");
+  if (!menu || menu.classList.contains("hidden")) return;
+  const toggle = document.getElementById("attachToggle");
+  if (menu.contains(e.target) || toggle?.contains(e.target)) return;
+  closeAttachMenu();
 });
 
 // ============= BMI Calculator =============
@@ -578,8 +700,8 @@ function askBMIAdvice() {
   const message = `Saya sudah menghitung BMI saya: tinggi ${heightCm} cm, berat ${weightKg} kg, BMI = ${bmi.toFixed(1)} (${label}). Mohon berikan saran kesehatan, pola makan, dan olahraga yang sesuai untuk kondisi saya. 🩺`;
 
   closeBMI();
-  switchTab("text");
-  const input = document.getElementById("textInput");
+  clearAttachment();
+  const input = document.getElementById("composerInput");
   input.value = message;
   autoResize(input);
   sendText();
@@ -588,6 +710,13 @@ function askBMIAdvice() {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     const modal = document.getElementById("bmiModal");
-    if (modal && modal.classList.contains("open")) closeBMI();
+    if (modal && modal.classList.contains("open")) {
+      closeBMI();
+      return;
+    }
+    const menu = document.getElementById("attachMenu");
+    if (menu && !menu.classList.contains("hidden")) {
+      closeAttachMenu();
+    }
   }
 });
