@@ -202,7 +202,7 @@ app.post("/api/chat/audio", upload.single("audio"), async (req, res) => {
   }
 });
 
-// Generate 3 follow-up suggestions based on bot response
+// Generate follow-up suggestions based on bot response
 app.post("/api/chat/suggestions", async (req, res) => {
   const { context } = req.body;
 
@@ -234,14 +234,14 @@ Contoh format jawaban:
       const parsed = JSON.parse(response.text);
       suggestions = parsed.suggestions || [];
     } catch {
-      // Try to extract suggestions from text if JSON parsing fails
-      const match = response.text.match(/\[.*\]/s);
-      if (match) {
-        try {
-          suggestions = JSON.parse(match[0]);
-        } catch {
-          // Fallback: split by newlines or bullets
-          suggestions = response.text
+      // Extract suggestions from text if JSON parsing fails
+    const match = response.text.match(/\[.*\]/s);
+    if (match) {
+      try {
+        suggestions = JSON.parse(match[0]);
+      } catch {
+        // Parse from lines if JSON fails
+        suggestions = response.text
             .split(/\n|[-•*]/)
             .map((s) => s.trim().replace(/^\d+[.)]\s*/, ""))
             .filter((s) => s.length > 0 && s.length < 60)
@@ -250,7 +250,7 @@ Contoh format jawaban:
       }
     }
 
-    // Ensure we have exactly 3 suggestions
+    // Always return exactly 3 suggestions
     if (!Array.isArray(suggestions) || suggestions.length < 3) {
       suggestions = [
         "Apa yang harus saya lakukan selanjutnya?",

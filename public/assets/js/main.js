@@ -236,7 +236,6 @@ function appendBotMessage(text, ts, opts = {}) {
   container.appendChild(div);
   scrollToBottom();
 
-  // Generate suggestions after message is rendered
   if (!opts.silent) {
     generateSuggestions(text, `suggestions-${ts}`);
   }
@@ -246,7 +245,6 @@ async function generateSuggestions(botResponse, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  // Show loading skeleton
   container.innerHTML = `
     <div class="suggestion-skeleton"></div>
     <div class="suggestion-skeleton"></div>
@@ -276,7 +274,6 @@ async function generateSuggestions(botResponse, containerId) {
         )
         .join("");
 
-      // Store suggestions for this container
       window._suggestions = window._suggestions || {};
       window._suggestions[containerId] = suggestions;
     } else {
@@ -359,7 +356,7 @@ function askTopic(msg) {
   sendText();
 }
 
-// ============= Composer / Attachments =============
+// Composer / Attachments
 
 function toggleAttachMenu(e) {
   if (e) e.stopPropagation();
@@ -396,7 +393,6 @@ function pickAttachment(type) {
 function handleFileSelect(event, type) {
   const file = event.target.files[0];
   if (file) setAttachment(type, file);
-  // Reset so picking the same file again still triggers onchange
   event.target.value = "";
 }
 
@@ -546,7 +542,6 @@ async function sendWithAttachment() {
   formData.append(meta.field, file);
   if (prompt) formData.append("message", prompt);
 
-  // Snapshot to allow restore on error
   const restore = selectedAttachment;
   input.value = "";
   autoResize(input);
@@ -573,7 +568,6 @@ async function sendWithAttachment() {
     saveHistory();
     appendBotMessage(data.result);
 
-    // success — release any preview URL we held
     if (restore.previewUrl) URL.revokeObjectURL(restore.previewUrl);
     ["imageInput", "docInput", "audioInput"].forEach((id) => {
       const el = document.getElementById(id);
@@ -581,7 +575,6 @@ async function sendWithAttachment() {
     });
   } catch (err) {
     appendErrorMessage(err.message || meta.errorMsg);
-    // Restore attachment so user can retry without re-picking
     selectedAttachment = restore;
     renderAttachmentPreview();
     input.placeholder = meta.placeholder;
@@ -590,7 +583,7 @@ async function sendWithAttachment() {
   }
 }
 
-// ============= Drag & Drop on chat area =============
+// Drag & Drop on chat area
 
 function detectAttachmentType(file) {
   if (!file) return null;
@@ -604,7 +597,6 @@ function detectAttachmentType(file) {
   ) {
     return "document";
   }
-  // Fallback on extension
   if (/\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(file.name)) return "image";
   if (/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) return "audio";
   return null;
@@ -614,7 +606,6 @@ function setupDragAndDrop() {
   const main = document.querySelector("main");
   if (!main) return;
 
-  // Position-relative wrapper for overlay
   main.style.position = main.style.position || "relative";
 
   const overlay = document.createElement("div");
@@ -663,7 +654,7 @@ function setupDragAndDrop() {
   });
 }
 
-// ============= Init =============
+// Init
 
 document.addEventListener("DOMContentLoaded", () => {
   loadHistory();
@@ -672,7 +663,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDragAndDrop();
 });
 
-// Close attach menu on outside click
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("attachMenu");
   if (!menu || menu.classList.contains("hidden")) return;
@@ -680,8 +670,6 @@ document.addEventListener("click", (e) => {
   if (menu.contains(e.target) || toggle?.contains(e.target)) return;
   closeAttachMenu();
 });
-
-// ============= BMI Calculator =============
 
 function openBMI() {
   haptic(12);
