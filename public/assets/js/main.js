@@ -223,6 +223,7 @@ function appendBotMessage(text, ts, opts = {}) {
             <div class="bubble-bot px-4 py-3 text-sm text-slate-200 leading-relaxed">
               <div class="prose-health">${parsed}</div>
             </div>
+            <div id="suggestions-${ts}" class="suggestions-container mt-2 flex flex-wrap gap-2"></div>
             <div class="flex items-center gap-2 mt-1.5 px-1">
               <button onclick="copyText(this, ${JSON.stringify(text)})" class="text-xs text-slate-600 hover:text-jade-400 transition-colors flex items-center gap-1">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2"/></svg>
@@ -234,6 +235,64 @@ function appendBotMessage(text, ts, opts = {}) {
         </div>`;
   container.appendChild(div);
   scrollToBottom();
+
+  // Generate suggestions after message is rendered
+  if (!opts.silent) {
+    generateSuggestions(text, `suggestions-${ts}`);
+  }
+}
+
+async function generateSuggestions(botResponse, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // Show loading skeleton
+  container.innerHTML = `
+    <div class="suggestion-skeleton"></div>
+    <div class="suggestion-skeleton"></div>
+    <div class="suggestion-skeleton"></div>
+  `;
+
+  try {
+    const res = await fetch("/api/chat/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ context: botResponse }),
+    });
+
+    if (!res.ok) throw new Error("Failed to get suggestions");
+
+    const data = await res.json();
+    const suggestions = data.suggestions || [];
+
+    if (suggestions.length > 0) {
+      container.innerHTML = suggestions
+        .map(
+          (s, i) => `
+        <button class="suggestion-btn" onclick="useSuggestion(${i}, ${JSON.stringify(s).replace(/"/g, "&quot;")})">
+          ${escapeHtml(s)}
+        </button>
+      `,
+        )
+        .join("");
+
+      // Store suggestions for this container
+      window._suggestions = window._suggestions || {};
+      window._suggestions[containerId] = suggestions;
+    } else {
+      container.innerHTML = "";
+    }
+  } catch (err) {
+    console.warn("Could not load suggestions:", err.message);
+    container.innerHTML = "";
+  }
+}
+
+function useSuggestion(index, text) {
+  const input = document.getElementById("composerInput");
+  input.value = text;
+  autoResize(input);
+  sendText();
 }
 
 function appendErrorMessage(text) {

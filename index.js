@@ -202,6 +202,70 @@ app.post("/api/chat/audio", upload.single("audio"), async (req, res) => {
   }
 });
 
+// Generate 3 follow-up suggestions based on bot response
+app.post("/api/chat/suggestions", async (req, res) => {
+  const { context } = req.body;
+
+  if (!context || !context.trim()) {
+    return res.status(400).json({ error: "Context tidak boleh kosong." });
+  }
+
+  try {
+    const prompt = `Berdasarkan respons berikut dari HealthBot, berikan 3 saran pertanyaan lanjutan yang relevan untuk pengguna. Format jawaban: array JSON dengan key "suggestions" berisi 3 string pertanyaan. Setiap pertanyaan harus pendek (maksimal 50 karakter), praktis, dan langsung berkaitan dengan topik yang dibahas.
+
+Respons HealthBot:
+${context.slice(0, 800)}${context.length > 800 ? "..." : ""}
+
+Contoh format jawaban:
+{"suggestions": ["Apa penyebabnya?", "Bagaimana mencegahnya?", "Obat apa yang cocok?"]}`;
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.7,
+        topP: 0.9,
+        responseMimeType: "application/json",
+      },
+    });
+
+    let suggestions = [];
+    try {
+      const parsed = JSON.parse(response.text);
+      suggestions = parsed.suggestions || [];
+    } catch {
+      // Try to extract suggestions from text if JSON parsing fails
+      const match = response.text.match(/\[.*\]/s);
+      if (match) {
+        try {
+          suggestions = JSON.parse(match[0]);
+        } catch {
+          // Fallback: split by newlines or bullets
+          suggestions = response.text
+            .split(/\n|[-•*]/)
+            .map((s) => s.trim().replace(/^\d+[.)]\s*/, ""))
+            .filter((s) => s.length > 0 && s.length < 60)
+            .slice(0, 3);
+        }
+      }
+    }
+
+    // Ensure we have exactly 3 suggestions
+    if (!Array.isArray(suggestions) || suggestions.length < 3) {
+      suggestions = [
+        "Apa yang harus saya lakukan selanjutnya?",
+        "Apakah ada efek samping yang perlu diwaspadai?",
+        "Kapan saya harus ke dokter?",
+      ];
+    }
+
+    res.status(200).json({ suggestions: suggestions.slice(0, 3) });
+  } catch (error) {
+    console.error("Suggestions error:", error);
+    res.status(500).json({ suggestions: [] });
+  }
+});
+
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
