@@ -1,6 +1,6 @@
 # 🩺 HealthBot - Asisten Kesehatan AI
 
-> **Final Project - AI Productivity and AI API Integration for Developers**  
+> **Final Project - AI Productivity and AI API Integration for Developers**
 > Organized by **Hacktiv8** | Powered by **Google Gemini 2.5 Flash**
 
 ---
@@ -17,6 +17,7 @@
 | 🖼️ **Gambar** | Upload foto untuk analisis visual | `POST /api/chat/image` |
 | 📄 **Dokumen** | Baca & jelaskan hasil lab / resep | `POST /api/chat/document` |
 | 🎵 **Audio** | Transkripsi & analisis rekaman suara | `POST /api/chat/audio` |
+| 💡 **Suggestion** | 3 pertanyaan lanjutan berbasis respons | `POST /api/chat/suggestions` |
 
 ### 🎯 Use Case
 
@@ -46,10 +47,13 @@
 ```
 hackiv8-healthbot-gemini/
 ├── public/
-│   └── index.html        # Frontend SPA (UI chatbot)
-├── .env                  # API key (jangan di-commit!)
+│   ├── index.html              # Frontend SPA
+│   └── assets/
+│       ├── css/styles.css      # Custom styles
+│       └── js/main.js          # Frontend logic
+├── .env                        # API key (jangan di-commit!)
 ├── .gitignore
-├── index.js              # Express server + semua API endpoint
+├── index.js                    # Express server + semua API endpoint
 ├── package.json
 └── README.md
 ```
@@ -142,6 +146,23 @@ message: "Transkripsi dan analisis" (opsional)
 { "result": "Audio menyebutkan..." }
 ```
 
+### `POST /api/chat/suggestions`
+```json
+// Request body (JSON)
+{
+  "context": "Respons bot untuk generating suggestions..."
+}
+
+// Response
+{
+  "suggestions": [
+    "Apa penyebabnya?",
+    "Bagaimana mencegahnya?",
+    "Kapan harus ke dokter?"
+  ]
+}
+```
+
 ---
 
 ## ⚙️ Konfigurasi Gemini
@@ -153,6 +174,22 @@ message: "Transkripsi dan analisis" (opsional)
 | `topP` | `0.85–0.9` | Nucleus sampling |
 | `topK` | `40` | Top-K token |
 | `systemInstruction` | Custom | Persona HealthBot |
+
+---
+
+## 🎨 Fitur UI/UX
+
+- **Dark theme** dengan green accent (Tailwind CSS)
+- **Attachment menu** — Klik `+` untuk upload gambar/dokumen/audio
+- **Drag & drop** — Seret file langsung ke chat area
+- **BMI Calculator** — Modal kalkulator Body Mass Index
+- **Suggestion buttons** — 3 pertanyaan lanjutan di bawah respons bot
+- **Typing indicator** — Animasi dots saat menunggu respons
+- **Skeleton loading** — Shimmer bars saat loading
+- **Copy to clipboard** — Tombol salin di setiap respons
+- **Conversation persistence** — Chat history tersimpan di localStorage
+- **Haptic feedback** — Vibration di mobile devices
+- **Responsive design** — Mobile & desktop friendly
 
 ---
 
