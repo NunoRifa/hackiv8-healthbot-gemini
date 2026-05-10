@@ -1,6 +1,6 @@
-let chatHistory = []; // [{role:'user'|'model', text:'...', ts:number, kind?:'media', mediaIcon?, mediaLabel?, mediaName?, prompt?}]
+let chatHistory = [];
 let isSending = false;
-let selectedAttachment = null; // { type: 'image'|'document'|'audio', file: File, previewUrl?: string }
+let selectedAttachment = null;
 
 const STORAGE_KEY = "healthbot:chat:v1";
 const MAX_PERSISTED_MESSAGES = 100;
@@ -511,9 +511,10 @@ async function sendText() {
 
     if (!res.ok) throw new Error(data.error || "Server error");
 
-    chatHistory.push({ role: "model", text: data.result, ts: Date.now() });
+    const modelTs = Date.now();
+    chatHistory.push({ role: "model", text: data.result, ts: modelTs });
     saveHistory();
-    appendBotMessage(data.result);
+    appendBotMessage(data.result, modelTs);
   } catch (err) {
     chatHistory.pop();
     saveHistory();
@@ -564,9 +565,10 @@ async function sendWithAttachment() {
       prompt,
       ts: Date.now(),
     });
-    chatHistory.push({ role: "model", text: data.result, ts: Date.now() });
+    const modelTs = Date.now();
+    chatHistory.push({ role: "model", text: data.result, ts: modelTs });
     saveHistory();
-    appendBotMessage(data.result);
+    appendBotMessage(data.result, modelTs);
 
     if (restore.previewUrl) URL.revokeObjectURL(restore.previewUrl);
     ["imageInput", "docInput", "audioInput"].forEach((id) => {
